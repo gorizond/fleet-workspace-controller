@@ -1,0 +1,13 @@
+apiVersion: management.cattle.io/v3
+displayName: Create Fleet
+kind: GlobalRole
+metadata:
+  name: fleet-create
+newUserDefault: true
+rules:
+  - apiGroups:
+      - management.cattle.io
+    resources:
+      - fleetworkspaces
+    verbs:
+      - create
