@@ -1,0 +1,1 @@
+![gorizond](https://raw.githubusercontent.com/gorizond/fleet-workspace-controller/refs/heads/main/diagrams/gorizond.svg)

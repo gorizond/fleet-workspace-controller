@@ -1,0 +1,105 @@
+@startuml Gorizond Management Architecture
+
+skinparam rectangle {
+  BackgroundColor<<User>> PaleGreen
+  BackgroundColor<<Fleet>> SkyBlue
+  BackgroundColor<<GitOps>> LightSalmon
+  BackgroundColor<<K8s>> LightPink
+}
+
+skinparam note {
+  BackgroundColor LightGoldenRodYellow
+  BorderColor DarkOrange
+}
+
+skinparam linetype ortho
+skinparam backgroundColor White
+skinparam rectangleBorderColor DarkSlateGray
+
+title Gorizond Management Architecture
+
+package "Rancher Management Platform" as RancherMgmt {
+  'Users layer
+  package "Users" as Users {
+    rectangle "User 1" as User1 <<User>>
+    rectangle "User 2" as User2 <<User>>
+    rectangle "User 3" as User3 <<User>>
+  }
+
+  'Fleet workspaces layer  
+  package "Fleet Workspaces" as Fleets {
+    package "User1's Fleet Workspace" as Fleet1 {
+      rectangle "User1-Workspace" as User1Workspace <<Fleet>>
+      note right of User1Workspace: Owned by User1\nUser2 has admin access\nUser3 has view access
+      
+      'GitOps projects in User1's workspace
+      package "GitOps Projects" as GitOps1 {
+        rectangle "GitRepo 1" as GitRepo1_1 <<GitOps>>
+        rectangle "GitRepo 2" as GitRepo1_2 <<GitOps>>
+      }
+      
+      'K8s clusters in User1's workspace
+      package "K8s Clusters" as Clusters1 {
+        rectangle "Cluster A" as ClusterA1 <<K8s>>
+        rectangle "Cluster B" as ClusterB1 <<K8s>>
+      }
+    }
+    
+    package "User2's Fleet Workspace" as Fleet2 {
+      rectangle "User2-Workspace" as User2Workspace <<Fleet>>
+      note right of User2Workspace: Owned by User2\nUser3 has editor access
+      
+      'GitOps projects in User2's workspace
+      package "GitOps Projects" as GitOps2 {
+        rectangle "GitRepo 1" as GitRepo2_1 <<GitOps>>
+        rectangle "GitRepo 2" as GitRepo2_2 <<GitOps>>
+        rectangle "GitRepo 3" as GitRepo2_3 <<GitOps>>
+      }
+      
+      'K8s clusters in User2's workspace
+      package "K8s Clusters" as Clusters2 {
+        rectangle "Cluster C" as ClusterC2 <<K8s>>
+      }
+    }
+    
+    package "User3's Fleet Workspace" as Fleet3 {
+      rectangle "User3-Workspace" as User3Workspace <<Fleet>>
+      note right of User3Workspace: Owned by User3\nUser1 has editor access
+      
+      'GitOps projects in User3's workspace
+      package "GitOps Projects" as GitOps3 {
+        rectangle "GitRepo 1" as GitRepo3_1 <<GitOps>>
+      }
+      
+      'K8s clusters in User3's workspace
+      package "K8s Clusters" as Clusters3 {
+        rectangle "Cluster D" as ClusterD3 <<K8s>>
+        rectangle "Cluster E" as ClusterE3 <<K8s>>
+      }
+    }
+  }
+}
+
+' User relationships with their workspaces
+User1 -[#green,bold]-> User1Workspace: owns
+User2 -[#green,bold]-> User2Workspace: owns
+User3 -[#green,bold]-> User3Workspace: owns
+
+' Cross-user access relationships
+User1 -[#blue]-> User3Workspace: has editor access
+User2 -[#purple]-> User1Workspace: has admin access
+User3 -[#gray]-> User1Workspace: has view access
+User3 -[#blue]-> User2Workspace: has editor access
+
+' GitOps deployments to clusters
+GitRepo1_1 -[#orange]-> ClusterA1: deploys to
+GitRepo1_2 -[#orange]-> ClusterB1: deploys to
+GitRepo2_1 -[#orange]-> ClusterC2: deploys to
+GitRepo2_2 -[#orange]-> ClusterC2: deploys to
+GitRepo2_3 -[#orange]-> ClusterC2: deploys to
+GitRepo3_1 -[#orange]-> ClusterD3: deploys to
+GitRepo3_1 -[#orange]-> ClusterE3: deploys to
+
+note bottom: Implements:\n- Automatic Fleet Workspace creation per user\n- Role-based access across workspaces\n- GitOps-based deployments to K8s clusters\n- CRD for provisioning clusters
+
+@enduml
