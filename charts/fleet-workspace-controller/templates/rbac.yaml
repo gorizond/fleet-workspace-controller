@@ -18,12 +18,30 @@ metadata:
   labels:
     {{- include "fleet-workspace-controller.labels" . | nindent 4 }}
 rules:
-  - apiGroups: ["management.cattle.io"]
-    resources: ["fleetworkspaces", "globalroles", "globalrolebindings"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  - apiGroups: ["management.cattle.io"]
-    resources: ["users"]
-    verbs: ["get", "list", "watch"]
+  - verbs:
+      - '*'
+    apiGroups:
+      - management.cattle.io
+    resources:
+      - fleetworkspaces
+      - globalroles
+      - globalrolebindings
+  - verbs:
+      - get
+      - list
+      - watch
+      - update
+      - patch
+    apiGroups:
+      - management.cattle.io
+    resources:
+      - users
+  - verbs:
+      - '*'
+    apiGroups:
+      - provisioning.gorizond.io
+    resources:
+      - clusters
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
