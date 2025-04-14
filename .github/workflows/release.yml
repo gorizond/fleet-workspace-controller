@@ -24,7 +24,8 @@ jobs:
       id-token: write
     runs-on: ubuntu-latest
     steps:
-
+      - name: Checkout for docker
+        uses: actions/checkout@v4
       # Install the cosign tool except on PR
       # https://github.com/sigstore/cosign-installer
       - name: Install cosign
