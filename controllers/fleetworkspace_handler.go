@@ -134,7 +134,7 @@ func createRole(mgmt *management.Factory, fleetworkspace *managementv3.FleetWork
 					Resources: []string{"clusters"},
 					Verbs:     verbs,
 				},
-            }
+            },
         },
         Rules: []rbacv1.PolicyRule{
             {
