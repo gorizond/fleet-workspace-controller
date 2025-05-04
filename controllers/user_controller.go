@@ -7,7 +7,7 @@ import (
 	"github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	
+	"strings"
 )
 
 func InitUserController(ctx context.Context, mgmt *management.Factory) {
