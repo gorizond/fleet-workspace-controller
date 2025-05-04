@@ -129,6 +129,11 @@ func createRole(mgmt *management.Factory, fleetworkspace *managementv3.FleetWork
                     Resources: []string{"gitrepos", "bundles", "clusterregistrationtokens", "gitreporestrictions", "clusters", "clustergroups"},
                     Verbs:     verbs,
                 },
+				{
+					APIGroups: []string{"provisioning.gorizond.io"},
+					Resources: []string{"clusters"},
+					Verbs:     verbs,
+				},
             }
         },
         Rules: []rbacv1.PolicyRule{
