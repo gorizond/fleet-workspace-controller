@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"strings"
 	"github.com/rancher/lasso/pkg/log"
 	managementv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	"github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io"
@@ -24,6 +25,16 @@ func InitUserController(ctx context.Context, mgmt *management.Factory) {
 
 			if firstInit {
 				return obj, nil
+			}
+			// ignore system users
+			for _, id := range obj.PrincipalIDs {
+				if strings.HasPrefix(id, "system://") {	
+					if obj.Annotations == nil {
+						obj.Annotations = make(map[string]string)
+					}
+					obj.Annotations["self-workspace-init"] = "true"
+					return users.Update(obj)
+				}
 			}
 
 			fleetworkspace := &managementv3.FleetWorkspace{
