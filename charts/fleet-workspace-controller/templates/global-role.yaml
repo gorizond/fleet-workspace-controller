@@ -11,3 +11,12 @@ rules:
       - fleetworkspaces
     verbs:
       - create
+  - apiGroups:
+      - management.cattle.io
+    resources:
+      - principals
+      - roletemplates
+    verbs:
+      - get
+      - list
+      - watch
