@@ -39,7 +39,7 @@ func InitUserController(ctx context.Context, mgmt *management.Factory) {
 
 		fleetworkspace := &managementv3.FleetWorkspace{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: obj.DisplayName + "-workspace",
+				Name: "workspace-" + obj.Name,
 				Annotations: map[string]string{
 					"field.cattle.io/creatorId": obj.Name,
 				},
