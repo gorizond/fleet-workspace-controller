@@ -40,7 +40,7 @@ func main() {
 	controllers.InitFleetWorkspaceController(ctx, factory)
 	controllers.InitGlobalRoleBindingController(ctx, factory)
 	// Start controllers
-	if err := start.All(ctx, 1, factory); err != nil {
+	if err := start.All(ctx, 10, factory); err != nil {
 		panic(err)
 	}
 
