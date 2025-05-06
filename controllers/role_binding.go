@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
-	"encoding/base64"
+	"strconv"
 	"github.com/rancher/lasso/pkg/log"
 	managementv3 "github.com/gorizond/fleet-workspace-controller/pkg/apis/management.cattle.io/v3"
 	v3 "github.com/gorizond/fleet-workspace-controller/pkg/generated/controllers/management.cattle.io/v3"
@@ -39,12 +39,7 @@ func createGlobalRoleBinding(mgmt v3.GlobalRoleBindingController, fleetworkspace
 
 func findByPrincipal(users v3.UserController, principal v3.PrincipalController, mgmt v3.GlobalRoleBindingController, fleetworkspace *managementv3.FleetWorkspace, fleetWorkspaces v3.FleetWorkspaceController, annotationKey string, annotationValue string) (*managementv3.FleetWorkspace, error) {
 	parts := strings.SplitN(annotationKey[len("gorizond-principal."):], ".", 2)
-	str, err := base64.StdEncoding.DecodeString(parts[0])
-	if err != nil {
-		log.Infof("Failed to decode base64 for principalID: %v", err)
-		return nil, fmt.Errorf("failed to decode base64 for principalID: %v", err)
-	}
-	principalID := string(str)
+	principalID := annotationValue
 	role := parts[1]
 	// check if group
 	isGroupPrincipal := false
@@ -75,7 +70,7 @@ func findByPrincipal(users v3.UserController, principal v3.PrincipalController, 
 		globalRoleBindingTMP.UserPrincipalName = principalID
 		globalRoleBindingTMP.Annotations["type"] = "user"
 	}
-	_, err = mgmt.Create(globalRoleBindingTMP)
+	_, err := mgmt.Create(globalRoleBindingTMP)
 	if err != nil && !errors.IsAlreadyExists(err) {
 		log.Infof("Failed to create global role binding: %v", err)
 	}
@@ -84,7 +79,7 @@ func findByPrincipal(users v3.UserController, principal v3.PrincipalController, 
 	if err != nil {
 		return nil, fmt.Errorf("Failed to create global role binding: %v", err)
 	}
-	
+
 	if principalObject.PrincipalType == "group" {
 		// TODO create group code
 		log.Errorf("Rancher groups not comming soon")
@@ -130,12 +125,12 @@ func findByPrincipal(users v3.UserController, principal v3.PrincipalController, 
 			break
 		}
 	}
-	
+
 	if userlocalID == "" {
 		return nil, fmt.Errorf("Rancher user for %s not found in %d searched users", principalID, len(items))
 	}
-	
-	fleetworkspace.Annotations["gorizond-user." + userlocalID + "." + role] = time.Now().UTC().GoString()
+
+	fleetworkspace.Annotations["gorizond-user."+userlocalID+"."+role] = strconv.FormatInt(time.Now().UnixNano(), 10)
 	delete(fleetworkspace.Annotations, annotationKey)
 	return fleetWorkspaces.Update(fleetworkspace)
 }
