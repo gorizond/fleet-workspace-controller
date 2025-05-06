@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
+	"encoding/base64"
 	"github.com/rancher/lasso/pkg/log"
 	managementv3 "github.com/gorizond/fleet-workspace-controller/pkg/apis/management.cattle.io/v3"
 	v3 "github.com/gorizond/fleet-workspace-controller/pkg/generated/controllers/management.cattle.io/v3"
@@ -39,7 +39,12 @@ func createGlobalRoleBinding(mgmt v3.GlobalRoleBindingController, fleetworkspace
 
 func findByPrincipal(users v3.UserController, principal v3.PrincipalController, mgmt v3.GlobalRoleBindingController, fleetworkspace *managementv3.FleetWorkspace, fleetWorkspaces v3.FleetWorkspaceController, annotationKey string, annotationValue string) (*managementv3.FleetWorkspace, error) {
 	parts := strings.SplitN(annotationKey[len("gorizond-principal."):], ".", 2)
-	principalID := parts[0]
+	str, err := base64.StdEncoding.DecodeString(parts[0])
+	if err != nil {
+		log.Infof("Failed to decode base64 for principalID: %v", err)
+		return nil, fmt.Errorf("failed to decode base64 for principalID: %v", err)
+	}
+	principalID := string(str)
 	role := parts[1]
 	// check if group
 	isGroupPrincipal := false
