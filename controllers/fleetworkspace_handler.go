@@ -3,8 +3,8 @@ package controllers
 import (
 	"context"
 	"github.com/rancher/lasso/pkg/log"
-	managementv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	"github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io"
+	managementv3 "github.com/gorizond/fleet-workspace-controller/pkg/apis/management.cattle.io/v3"
+	"github.com/gorizond/fleet-workspace-controller/pkg/generated/controllers/management.cattle.io"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -13,6 +13,9 @@ import (
 
 func InitFleetWorkspaceController(ctx context.Context, mgmt *management.Factory) {
 	fleetWorkspaces := mgmt.Management().V3().FleetWorkspace()
+	users := mgmt.Management().V3().User()
+	principal := mgmt.Management().V3().Principal()
+	globalRoleBinding := mgmt.Management().V3().GlobalRoleBinding()
 	fleetWorkspaces.OnChange(ctx, "gorizond-fleetworkspace-controller", func(key string, obj *managementv3.FleetWorkspace) (*managementv3.FleetWorkspace, error) {
 		if obj == nil {
 			return nil, nil
@@ -26,9 +29,12 @@ func InitFleetWorkspaceController(ctx context.Context, mgmt *management.Factory)
 		//
 		//
 		// Create or update global role bindings based on annotations
-		for k, _ := range obj.Annotations {
+		for k, v := range obj.Annotations {
 			if strings.HasPrefix(k, "gorizond-user.") {
-				createGlobalRoleBinding(mgmt, obj, k)
+				createGlobalRoleBinding(globalRoleBinding, obj.Name, k)
+			}
+			if strings.HasPrefix(k, "gorizond-principal.") {
+				return findByPrincipal(users, principal, globalRoleBinding, obj, fleetWorkspaces, k, v)
 			}
 		}
 

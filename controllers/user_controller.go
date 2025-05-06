@@ -3,8 +3,8 @@ package controllers
 import (
 	"context"
 	"github.com/rancher/lasso/pkg/log"
-	managementv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	"github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io"
+	managementv3 "github.com/gorizond/fleet-workspace-controller/pkg/apis/management.cattle.io/v3"
+	"github.com/gorizond/fleet-workspace-controller/pkg/generated/controllers/management.cattle.io"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"

@@ -3,10 +3,8 @@ package main
 import (
 	"flag"
 	"github.com/gorizond/fleet-workspace-controller/controllers"
-	
+	"github.com/gorizond/fleet-workspace-controller/pkg/generated/controllers/management.cattle.io"
 	"github.com/rancher/wrangler/v3/pkg/start"
-	
-	"github.com/rancher/rancher/pkg/generated/controllers/management.cattle.io"
 	"github.com/rancher/wrangler/v3/pkg/kubeconfig"
 	"github.com/rancher/wrangler/v3/pkg/signals"
 	"k8s.io/client-go/rest"
@@ -32,13 +30,14 @@ func main() {
 	if err != nil {
 		log.Errorf("Failed to create management factory: %v", err)
 	}
-	// users := factory.Management().V3().User()
+
 
 	ctx := signals.SetupSignalContext()
 	// Initialize controllers
 	controllers.InitUserController(ctx, factory)
 	controllers.InitFleetWorkspaceController(ctx, factory)
 	controllers.InitGlobalRoleBindingController(ctx, factory)
+	controllers.InitGlobalRoleBindingTTLController(ctx, factory)
 	// Start controllers
 	if err := start.All(ctx, 10, factory); err != nil {
 		panic(err)
