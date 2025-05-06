@@ -75,7 +75,7 @@ func findByPrincipal(users v3.UserController, principal v3.PrincipalController, 
 		globalRoleBindingTMP.UserPrincipalName = principalID
 		globalRoleBindingTMP.Annotations["type"] = "user"
 	}
-	_, err := mgmt.Create(globalRoleBindingTMP)
+	_, err = mgmt.Create(globalRoleBindingTMP)
 	if err != nil && !errors.IsAlreadyExists(err) {
 		log.Infof("Failed to create global role binding: %v", err)
 	}
