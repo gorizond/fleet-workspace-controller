@@ -132,7 +132,9 @@ func findByPrincipal(users v3.UserController, principal v3.PrincipalController, 
 	}
 
 	if userlocalID == "" {
-		return nil, fmt.Errorf("Rancher user for %s not found in %d searched users", principalID, len(items))
+		fmt.Errorf("Rancher user for %s not found in %d searched users", principalID, len(items))
+		delete(fleetworkspace.Annotations, annotationKey)
+		return fleetWorkspaces.Update(fleetworkspace)
 	}
 
 	fleetworkspace.Annotations["gorizond-user."+userlocalID+"."+role] = annotationValue
