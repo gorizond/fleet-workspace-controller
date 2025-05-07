@@ -8,9 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strconv"
 	"strings"
-	"time"
 
 	managementv3 "github.com/gorizond/fleet-workspace-controller/pkg/apis/management.cattle.io/v3"
 	v3 "github.com/gorizond/fleet-workspace-controller/pkg/generated/controllers/management.cattle.io/v3"
@@ -94,21 +92,21 @@ func findByPrincipal(users v3.UserController, principal v3.PrincipalController, 
 	}
 	log.Infof("Try find rancher user for %s", principalObject.LoginName)
 	// find new NOT INIT users
-	searchedUser1, err := findUserByUsername(os.Getenv("RANCHER_URL"), os.Getenv("RANCHER_TOKEN"), "")
+	searchedUser1, err := findUserByUsername(os.Getenv("RANCHER_URL"), os.Getenv("RANCHER_TOKEN"), "/v3/users?username=")
 	if err != nil {
-		return nil, fmt.Errorf("Failed to find metav1.ListOptions{FieldSelector: username=}: %v", err)
+		return nil, fmt.Errorf("Failed to find /v3/users?username=}: %v", err)
 	}
 	log.Infof("Found username=empty %d",len(searchedUser1.Data))
 	// find exist users with username=principal LoginName
-	searchedUser2, err := findUserByUsername(os.Getenv("RANCHER_URL"), os.Getenv("RANCHER_TOKEN"), principalObject.LoginName)
+	searchedUser2, err := findUserByUsername(os.Getenv("RANCHER_URL"), os.Getenv("RANCHER_TOKEN"), "/v3/users?username="+ strings.ToLower(principalObject.LoginName))
 	if err != nil {
-		return nil, fmt.Errorf("Failed to find metav1.ListOptions{FieldSelector: username=principalObject.LoginName}: %v", err)
+		return nil, fmt.Errorf("Failed to find /v3/users?username=principalObject.LoginName}: %v", err)
 	}
 	log.Infof("Found username=%s %d",strings.ToLower(principalObject.LoginName), len(searchedUser2.Data))
 	// find exist users with name=principal LoginName
-	searchedUser3, err := findUserByUsername(os.Getenv("RANCHER_URL"), os.Getenv("RANCHER_TOKEN"), principalObject.LoginName)
+	searchedUser3, err := findUserByUsername(os.Getenv("RANCHER_URL"), os.Getenv("RANCHER_TOKEN"), "/v3/users?name=" + strings.ToLower(principalObject.LoginName))
 	if err != nil {
-		return nil, fmt.Errorf("Failed to find metav1.ListOptions{FieldSelector: name=principalObject.LoginName}: %v", err)
+		return nil, fmt.Errorf("Failed to find /v3/users?name=principalObject.LoginName}: %v", err)
 	}
 	log.Infof("Found name=%s %d",strings.ToLower(principalObject.LoginName), len(searchedUser3.Data))
 	items := append(searchedUser1.Data, searchedUser2.Data...)
@@ -137,7 +135,7 @@ func findByPrincipal(users v3.UserController, principal v3.PrincipalController, 
 		return nil, fmt.Errorf("Rancher user for %s not found in %d searched users", principalID, len(items))
 	}
 
-	fleetworkspace.Annotations["gorizond-user."+userlocalID+"."+role] = strconv.FormatInt(time.Now().Unix(), 10)
+	fleetworkspace.Annotations["gorizond-user."+userlocalID+"."+role] = annotationValue
 	delete(fleetworkspace.Annotations, annotationKey)
 	return fleetWorkspaces.Update(fleetworkspace)
 }
@@ -204,17 +202,15 @@ type User struct {
     Username   string `json:"username"`
     Name       string `json:"name"`
     PrincipalIDs []string `json:"principalIds"`
-    // Добавьте другие необходимые поля
 }
 
 type UserCollection struct {
     Data []User `json:"data"`
 }
 
-func findUserByUsername(rancherURL, token, username string) (*UserCollection, error) {
+func findUserByUsername(rancherURL, token, query string) (*UserCollection, error) {
     // Escape the username for use in the URL
-    query := strings.ToLower(username)
-    endpoint := fmt.Sprintf("%s/v3/users?username=%s", rancherURL, query)
+    endpoint := rancherURL + query
 
     // Create an HTTP client with certificate verification disabled (for example purposes)
     client := &http.Client{

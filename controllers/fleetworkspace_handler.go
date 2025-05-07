@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"os"
 	"context"
 	"github.com/rancher/lasso/pkg/log"
 	managementv3 "github.com/gorizond/fleet-workspace-controller/pkg/apis/management.cattle.io/v3"
@@ -84,7 +85,18 @@ func InitFleetWorkspaceController(ctx context.Context, mgmt *management.Factory)
 			obj.Annotations = make(map[string]string)
 		}
 		obj.Annotations["workspace-roles-init"] = "true"
-		obj.Annotations["gorizond-user."+obj.Annotations["field.cattle.io/creatorId"]+".admin"] = "admin"
+		// find principal for user if exist
+		searchedUser, err := findUserByUsername(os.Getenv("RANCHER_URL"), os.Getenv("RANCHER_TOKEN"), "/v3/user?id=" + obj.Annotations["field.cattle.io/creatorId"])
+		if err != nil {
+			return nil, err
+		}
+		principalId := "local://" + obj.Annotations["field.cattle.io/creatorId"]
+		for _, iterPrincipal := range searchedUser.Data[0].PrincipalIDs {
+			if !strings.HasPrefix(iterPrincipal, "local://") {
+				principalId = iterPrincipal
+			}
+		}
+		obj.Annotations["gorizond-user."+obj.Annotations["field.cattle.io/creatorId"]+".admin"] = principalId
 
 		return fleetWorkspaces.Update(obj)
 	},
