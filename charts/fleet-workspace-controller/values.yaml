@@ -12,7 +12,11 @@ image:
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: ""
-
+  env:
+    - name: RANCHER_URL
+      value: https://rancher.gorizond
+    - name: RANCHER_TOKEN
+      value: token:secret
 # This is for the secrets for pulling an image from a private repository more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
 imagePullSecrets: []
 # This is to override the chart name.

@@ -1,0 +1,10 @@
+defaultNamespace: default
+
+helm:
+  chart: ./
+  values:
+    env:
+      - name: RANCHER_URL
+        value: ${ if hasKey .ClusterAnnotations "gorizond.rancher-url" }${ get .ClusterAnnotations "gorizond.rancher-url" }${ else }https://rancher.gorizond${ end }
+      - name: RANCHER_TOKEN
+        value: ${ if hasKey .ClusterAnnotations "gorizond.rancher-token" }${ get .ClusterAnnotations "gorizond.rancher-token" }${ else }token:secret${ end }

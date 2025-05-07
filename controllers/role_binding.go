@@ -1,13 +1,20 @@
 package controllers
 
 import (
+	"crypto/tls"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+	"net/url"
+	"os"
+	"strconv"
 	"strings"
 	"time"
-	"strconv"
-	"github.com/rancher/lasso/pkg/log"
+
 	managementv3 "github.com/gorizond/fleet-workspace-controller/pkg/apis/management.cattle.io/v3"
 	v3 "github.com/gorizond/fleet-workspace-controller/pkg/generated/controllers/management.cattle.io/v3"
+	"github.com/rancher/lasso/pkg/log"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -75,9 +82,9 @@ func findByPrincipal(users v3.UserController, principal v3.PrincipalController, 
 		log.Infof("Failed to create global role binding: %v", err)
 	}
 
-	principalObject, err := principal.Get(principalID, metav1.GetOptions{})
+	principalObject, err := getLoginName(os.Getenv("RANCHER_URL"), os.Getenv("RANCHER_TOKEN"), principalID)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to create global role binding: %v", err)
+		return nil, fmt.Errorf("Failed to get principalID: %v", err)
 	}
 
 	if principalObject.PrincipalType == "group" {
@@ -85,27 +92,27 @@ func findByPrincipal(users v3.UserController, principal v3.PrincipalController, 
 		log.Errorf("Rancher groups not comming soon")
 		return nil, nil
 	}
-	log.Infof("Try find rancher user for %s (%s)", principalObject.LoginName, principalObject.DisplayName)
+	log.Infof("Try find rancher user for %s", principalObject.LoginName)
 	// find new NOT INIT users
-	searchedUser1, err := users.List(metav1.ListOptions{FieldSelector: "username="})
+	searchedUser1, err := findUserByUsername(os.Getenv("RANCHER_URL"), os.Getenv("RANCHER_TOKEN"), "")
 	if err != nil {
 		return nil, fmt.Errorf("Failed to find metav1.ListOptions{FieldSelector: username=}: %v", err)
 	}
-	log.Infof("Found username=empty %d",len(searchedUser1.Items))
+	log.Infof("Found username=empty %d",len(searchedUser1.Data))
 	// find exist users with username=principal LoginName
-	searchedUser2, err := users.List(metav1.ListOptions{FieldSelector: "username=" +  strings.ToLower(principalObject.LoginName)})
+	searchedUser2, err := findUserByUsername(os.Getenv("RANCHER_URL"), os.Getenv("RANCHER_TOKEN"), principalObject.LoginName)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to find metav1.ListOptions{FieldSelector: username=principalObject.LoginName}: %v", err)
 	}
-	log.Infof("Found username=%s %d",strings.ToLower(principalObject.LoginName), len(searchedUser2.Items))
+	log.Infof("Found username=%s %d",strings.ToLower(principalObject.LoginName), len(searchedUser2.Data))
 	// find exist users with name=principal LoginName
-	searchedUser3, err := users.List(metav1.ListOptions{FieldSelector: "name=" +  strings.ToLower(principalObject.LoginName)})
+	searchedUser3, err := findUserByUsername(os.Getenv("RANCHER_URL"), os.Getenv("RANCHER_TOKEN"), principalObject.LoginName)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to find metav1.ListOptions{FieldSelector: name=principalObject.LoginName}: %v", err)
 	}
-	log.Infof("Found name=%s %d",strings.ToLower(principalObject.LoginName), len(searchedUser3.Items))
-	items := append(searchedUser1.Items, searchedUser2.Items...)
-	items = append(items, searchedUser3.Items...)
+	log.Infof("Found name=%s %d",strings.ToLower(principalObject.LoginName), len(searchedUser3.Data))
+	items := append(searchedUser1.Data, searchedUser2.Data...)
+	items = append(items, searchedUser3.Data...)
 	userFind := false
 	userlocalID := ""
 	for _, user := range items {
@@ -130,7 +137,124 @@ func findByPrincipal(users v3.UserController, principal v3.PrincipalController, 
 		return nil, fmt.Errorf("Rancher user for %s not found in %d searched users", principalID, len(items))
 	}
 
-	fleetworkspace.Annotations["gorizond-user."+userlocalID+"."+role] = strconv.FormatInt(time.Now().UnixNano(), 10)
+	fleetworkspace.Annotations["gorizond-user."+userlocalID+"."+role] = strconv.FormatInt(time.Now().Unix(), 10)
 	delete(fleetworkspace.Annotations, annotationKey)
 	return fleetWorkspaces.Update(fleetworkspace)
+}
+
+type Principal struct {
+    LoginName string `json:"loginName"`
+    PrincipalType string `json:"principalType"`
+}
+type SearchedUser struct {
+    LoginName string `json:"loginName"`
+    PrincipalType string `json:"principalType"`
+}
+
+func getLoginName(rancherURL, token, principalID string) (Principal, error) {
+    // Escape the principal identifier for use in the URL
+    encodedID := url.PathEscape(principalID)
+    endpoint := fmt.Sprintf("%s/v3/principals/%s", rancherURL, encodedID)
+
+    // Create an HTTP client with certificate verification disabled (for example purposes)
+    client := &http.Client{
+        Transport: &http.Transport{
+            TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+        },
+    }
+
+    var principal Principal
+    // Formulate the HTTP request
+    req, err := http.NewRequest("GET", endpoint, nil)
+    if err != nil {
+        return principal, fmt.Errorf("error creating request: %v", err)
+    }
+
+    // Add the authorization header
+    req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
+
+    // Execute the request
+    resp, err := client.Do(req)
+    if err != nil {
+        return principal, fmt.Errorf("error executing request: %v", err)
+    }
+    defer resp.Body.Close()
+
+    // Check the response status code
+    if resp.StatusCode != http.StatusOK {
+        return principal, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+    }
+
+    // Read the response body
+    body, err := ioutil.ReadAll(resp.Body)
+    if err != nil {
+        return principal, fmt.Errorf("error reading response body: %v", err)
+    }
+
+    // Parse the JSON response
+    if err := json.Unmarshal(body, &principal); err != nil {
+        return principal, fmt.Errorf("error parsing JSON: %v", err)
+    }
+
+    return principal, nil
+}
+
+type User struct {
+    ID         string `json:"id"`
+    Username   string `json:"username"`
+    Name       string `json:"name"`
+    PrincipalIDs []string `json:"principalIds"`
+    // Добавьте другие необходимые поля
+}
+
+type UserCollection struct {
+    Data []User `json:"data"`
+}
+
+func findUserByUsername(rancherURL, token, username string) (*UserCollection, error) {
+    // Escape the username for use in the URL
+    query := strings.ToLower(username)
+    endpoint := fmt.Sprintf("%s/v3/users?username=%s", rancherURL, query)
+
+    // Create an HTTP client with certificate verification disabled (for example purposes)
+    client := &http.Client{
+        Transport: &http.Transport{
+            TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+        },
+    }
+
+    // Formulate the HTTP request
+    req, err := http.NewRequest("GET", endpoint, nil)
+    if err != nil {
+        return nil, fmt.Errorf("error creating request: %v", err)
+    }
+
+    // Add the authorization header
+    req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
+
+    // Execute the request
+    resp, err := client.Do(req)
+    if err != nil {
+        return nil, fmt.Errorf("error executing request: %v", err)
+    }
+    defer resp.Body.Close()
+
+    // Check the response status code
+    if resp.StatusCode != http.StatusOK {
+        return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+    }
+
+    // Read the response body
+    body, err := ioutil.ReadAll(resp.Body)
+    if err != nil {
+        return nil, fmt.Errorf("error reading response body: %v", err)
+    }
+
+    // Parse the JSON response
+    var users UserCollection
+    if err := json.Unmarshal(body, &users); err != nil {
+        return nil, fmt.Errorf("error parsing JSON: %v", err)
+    }
+
+    return &users, nil
 }
