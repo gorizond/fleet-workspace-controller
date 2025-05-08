@@ -147,8 +147,8 @@ func findUserByPrincipal(principalObject Principal, principalID string, role str
 		return "", 0, fmt.Errorf("Failed to find /v3/users?name=principalObject.LoginName: %v", err)
 	}
 	log.Infof("Found name=%s %d",strings.ToLower(principalObject.LoginName), len(searchedUser3.Data))
-	items := append(searchedUser1.Data, searchedUser2.Data...)
-	items = append(items, searchedUser3.Data...)
+	items := append(searchedUser3.Data, searchedUser2.Data...)
+	// if by name not found may by its 'admin'?
 	if len(items) == 0 {
 		// try get admin
 		admin, err := findUserByUsername(os.Getenv("RANCHER_URL"), os.Getenv("RANCHER_TOKEN"), "/v3/users?username=admin")
@@ -157,6 +157,7 @@ func findUserByPrincipal(principalObject Principal, principalID string, role str
 		}
 		items = append(items, admin.Data...)
 	}
+	items = append(items, searchedUser1.Data...)
 	userFind := false
 	userlocalID := ""
 	for _, user := range items {
