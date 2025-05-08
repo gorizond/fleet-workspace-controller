@@ -165,9 +165,13 @@ func findUserByPrincipal(principalObject Principal, principalID string, role str
 				if iterPrincipal == principalID {
 					userFind = true
 				}
-				if strings.HasPrefix(iterPrincipal, "local://") && userFind {
-					userlocalID = strings.Split(iterPrincipal, "://")[1]
-					break
+				if userFind {
+					for _, iter := range user.PrincipalIDs {
+						if userlocalID == "" && strings.HasPrefix(iter, "local://") {
+							userlocalID = strings.Split(iter, "://")[1]
+							break
+						}
+					}
 				}
 			}
 		}
