@@ -78,27 +78,28 @@ func findByPrincipal(users v3.UserController, principal v3.PrincipalController, 
 	if strings.HasPrefix(principalID, "genericoidc_group://") {
 		isGroupPrincipal = true
 	}
-	// build tmp GlobalRoleBinding with ttl for rancher create if not exist user/group from principal to rancher user/group
-	globalRoleBindingTMP := &managementv3.GlobalRoleBinding{
-		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: "gorizond-tmp-",
-			Annotations: map[string]string{},
-			Labels: map[string]string{
-				"gorizond-ttl": "30",
+	tmpGlobalRoleBindingName := ""
+	if !isGroupPrincipal {
+		// build tmp GlobalRoleBinding with ttl for rancher create if not exist user/group from principal to rancher user/group
+		globalRoleBindingTMP := &managementv3.GlobalRoleBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				GenerateName: "gorizond-tmp-",
+				Annotations: map[string]string{
+					"type": "user",
+				},
+				Labels: map[string]string{
+					"gorizond-ttl": "30",
+				},
 			},
-		},
-		GlobalRoleName: "gorizond-" + role + "-" + fleetworkspace.Name,
-	}
-	if isGroupPrincipal {
-		globalRoleBindingTMP.GroupPrincipalName = principalID
-		globalRoleBindingTMP.Annotations["type"] = "group"
-	} else {
-		globalRoleBindingTMP.UserPrincipalName = principalID
-		globalRoleBindingTMP.Annotations["type"] = "user"
-	}
-	_, err := mgmt.Create(globalRoleBindingTMP)
-	if err != nil && !errors.IsAlreadyExists(err) {
-		log.Infof("Failed to create global role binding: %v", err)
+			GlobalRoleName: "gorizond-" + role + "-" + fleetworkspace.Name,
+			GroupPrincipalName: principalID,
+		}
+		
+		grbt, err := mgmt.Create(globalRoleBindingTMP)
+		tmpGlobalRoleBindingName = grbt.Name
+		if err != nil && !errors.IsAlreadyExists(err) {
+			log.Infof("Failed to create global role binding: %v", err)
+		}
 	}
 
 	principalObject, err := getLoginName(os.Getenv("RANCHER_URL"), os.Getenv("RANCHER_TOKEN"), principalID)
@@ -121,6 +122,11 @@ func findByPrincipal(users v3.UserController, principal v3.PrincipalController, 
 		}
 	}
 	delete(fleetworkspace.Annotations, annotationKey)
+	// clean tmp grb
+	if tmpGlobalRoleBindingName != "" {
+		log.Infof("tmpGlobalRoleBindingName: " + tmpGlobalRoleBindingName)
+		_ = mgmt.Delete(tmpGlobalRoleBindingName, &metav1.DeleteOptions{})
+	}
 	return fleetWorkspaces.Update(fleetworkspace)
 }
 
