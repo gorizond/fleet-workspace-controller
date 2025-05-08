@@ -32,7 +32,10 @@ func InitFleetWorkspaceController(ctx context.Context, mgmt *management.Factory)
 		// Create or update global role bindings based on annotations
 		for k, v := range obj.Annotations {
 			if strings.HasPrefix(k, "gorizond-user.") {
-				createGlobalRoleBinding(globalRoleBinding, obj.Name, k)
+				createGlobalRoleBinding(globalRoleBinding, "gorizond-user.", obj.Name, k)
+			}
+			if strings.HasPrefix(k, "gorizond-group.") {
+				createGlobalRoleBindingForGroup(globalRoleBinding, "gorizond-group.", obj.Name, k, v)
 			}
 			if strings.HasPrefix(k, "gorizond-principal.") {
 				return findByPrincipal(users, principal, globalRoleBinding, obj, fleetWorkspaces, k, v)
@@ -53,6 +56,10 @@ func InitFleetWorkspaceController(ctx context.Context, mgmt *management.Factory)
 			found := false
 			for k := range obj.Annotations {
 				if strings.HasPrefix(k, "gorizond-user.") && k == binding.Annotations["gorizond-binding"] {
+					found = true
+					break
+				}
+				if strings.HasPrefix(k, "gorizond-group.") && k == binding.Annotations["gorizond-binding"] {
 					found = true
 					break
 				}

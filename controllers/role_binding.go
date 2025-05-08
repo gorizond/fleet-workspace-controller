@@ -17,8 +17,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func createGlobalRoleBinding(mgmt v3.GlobalRoleBindingController, fleetworkspaceName string, annotationKey string) {
-	parts := strings.SplitN(annotationKey[len("gorizond-user."):], ".", 2)
+func createGlobalRoleBinding(mgmt v3.GlobalRoleBindingController, preffix, fleetworkspaceName string, annotationKey string) {
+	parts := strings.SplitN(annotationKey[len(preffix):], ".", 2)
 	userID := parts[0]
 	role := parts[1]
 	globalRoleBinding := &managementv3.GlobalRoleBinding{
@@ -32,6 +32,30 @@ func createGlobalRoleBinding(mgmt v3.GlobalRoleBindingController, fleetworkspace
 			},
 		},
 		UserName:       userID,
+		GlobalRoleName: "gorizond-" + role + "-" + fleetworkspaceName,
+	}
+
+	_, err := mgmt.Create(globalRoleBinding)
+	if err != nil && !errors.IsAlreadyExists(err) {
+		log.Infof("Failed to create global role binding: %v", err)
+	}
+}
+
+func createGlobalRoleBindingForGroup(mgmt v3.GlobalRoleBindingController, preffix, fleetworkspaceName string, annotationKey string, groupPrincipalName string) {
+	parts := strings.SplitN(annotationKey[len(preffix):], ".", 2)
+	GroupID := parts[0]
+	role := parts[1]
+	globalRoleBinding := &managementv3.GlobalRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "gorizond-" + role + "-" + GroupID + "-" + fleetworkspaceName,
+			Annotations: map[string]string{
+				"gorizond-binding": annotationKey,
+			},
+			Labels: map[string]string{
+				"fleet": fleetworkspaceName,
+			},
+		},
+		GroupPrincipalName: groupPrincipalName,
 		GlobalRoleName: "gorizond-" + role + "-" + fleetworkspaceName,
 	}
 
@@ -86,31 +110,53 @@ func findByPrincipal(users v3.UserController, principal v3.PrincipalController, 
 	}
 
 	if principalObject.PrincipalType == "group" {
-		// TODO create group code
-		log.Errorf("Rancher groups not comming soon")
-		return nil, nil
+		groupID := strings.Split(principalID, "://")[1]
+		fleetworkspace.Annotations["gorizond-group." + groupID + "." + role] = annotationValue
+	} else {
+		userlocalID, lenItems, err := findUserByPrincipal(principalObject, principalID, role)
+		if err != nil {
+			return nil, err
+		}
+		if userlocalID == "" {
+			fmt.Errorf("Rancher user for %s not found in %d searched users", principalID, lenItems)
+		} else {
+			fleetworkspace.Annotations["gorizond-user." + userlocalID + "." + role] = annotationValue
+		}
 	}
+	delete(fleetworkspace.Annotations, annotationKey)
+	return fleetWorkspaces.Update(fleetworkspace)
+}
+
+func findUserByPrincipal(principalObject Principal, principalID string, role string) (string, int, error) {
 	log.Infof("Try find rancher user for %s", principalObject.LoginName)
 	// find new NOT INIT users
 	searchedUser1, err := findUserByUsername(os.Getenv("RANCHER_URL"), os.Getenv("RANCHER_TOKEN"), "/v3/users?username=")
 	if err != nil {
-		return nil, fmt.Errorf("Failed to find /v3/users?username=}: %v", err)
+		return "", 0, fmt.Errorf("Failed to find /v3/users?username=: %v", err)
 	}
 	log.Infof("Found username=empty %d",len(searchedUser1.Data))
 	// find exist users with username=principal LoginName
 	searchedUser2, err := findUserByUsername(os.Getenv("RANCHER_URL"), os.Getenv("RANCHER_TOKEN"), "/v3/users?username="+ strings.ToLower(principalObject.LoginName))
 	if err != nil {
-		return nil, fmt.Errorf("Failed to find /v3/users?username=principalObject.LoginName}: %v", err)
+		return "", 0, fmt.Errorf("Failed to find /v3/users?username=principalObject.LoginName: %v", err)
 	}
 	log.Infof("Found username=%s %d",strings.ToLower(principalObject.LoginName), len(searchedUser2.Data))
 	// find exist users with name=principal LoginName
 	searchedUser3, err := findUserByUsername(os.Getenv("RANCHER_URL"), os.Getenv("RANCHER_TOKEN"), "/v3/users?name=" + strings.ToLower(principalObject.LoginName))
 	if err != nil {
-		return nil, fmt.Errorf("Failed to find /v3/users?name=principalObject.LoginName}: %v", err)
+		return "", 0, fmt.Errorf("Failed to find /v3/users?name=principalObject.LoginName: %v", err)
 	}
 	log.Infof("Found name=%s %d",strings.ToLower(principalObject.LoginName), len(searchedUser3.Data))
 	items := append(searchedUser1.Data, searchedUser2.Data...)
 	items = append(items, searchedUser3.Data...)
+	if len(items) == 0 {
+		// try get admin
+		admin, err := findUserByUsername(os.Getenv("RANCHER_URL"), os.Getenv("RANCHER_TOKEN"), "/v3/users?username=admin")
+		if err != nil {
+			return "", 0, fmt.Errorf("Failed to find /v3/users?username=admin: %v", err)
+		}
+		items = append(items, admin.Data...)
+	}
 	userFind := false
 	userlocalID := ""
 	for _, user := range items {
@@ -130,16 +176,7 @@ func findByPrincipal(users v3.UserController, principal v3.PrincipalController, 
 			break
 		}
 	}
-
-	if userlocalID == "" {
-		fmt.Errorf("Rancher user for %s not found in %d searched users", principalID, len(items))
-		delete(fleetworkspace.Annotations, annotationKey)
-		return fleetWorkspaces.Update(fleetworkspace)
-	}
-
-	fleetworkspace.Annotations["gorizond-user."+userlocalID+"."+role] = annotationValue
-	delete(fleetworkspace.Annotations, annotationKey)
-	return fleetWorkspaces.Update(fleetworkspace)
+	return userlocalID, len(items), nil
 }
 
 type Principal struct {

@@ -33,7 +33,7 @@ func InitGlobalRoleBindingController(ctx context.Context, mgmt *management.Facto
 		// set user as admin for workspace
 		userID := obj.Annotations["field.cattle.io/creatorId"]
 		FleetName := obj.Labels["fleet"]
-		createGlobalRoleBinding(globalRoleBinding, FleetName, "gorizond-user."+userID+".admin")
+		createGlobalRoleBinding(globalRoleBinding, "gorizond-user.", FleetName, "gorizond-user."+userID+".admin")
 
 		obj = obj.DeepCopy()
 		// Add annotation
