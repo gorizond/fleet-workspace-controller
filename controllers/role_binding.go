@@ -82,11 +82,8 @@ func findByPrincipal(users v3.UserController, principal v3.PrincipalController, 
 	globalRoleBindingTMP := &managementv3.GlobalRoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "gorizond-tmp-",
-			Annotations: map[string]string{
-				"gorizond-binding": annotationKey,
-			},
+			Annotations: map[string]string{},
 			Labels: map[string]string{
-				"fleet": fleetworkspace.Name,
 				"gorizond-ttl": "30",
 			},
 		},
@@ -151,6 +148,7 @@ func findUserByPrincipal(principalObject Principal, principalID string, role str
 	// if by name not found may by its 'admin'?
 	if len(items) == 0 {
 		// try get admin
+		log.Infof("try get admin")
 		admin, err := findUserByUsername(os.Getenv("RANCHER_URL"), os.Getenv("RANCHER_TOKEN"), "/v3/users?username=admin")
 		if err != nil {
 			return "", 0, fmt.Errorf("Failed to find /v3/users?username=admin: %v", err)
