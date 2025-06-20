@@ -135,6 +135,10 @@ func InitFleetWorkspaceController(ctx context.Context, mgmt *management.Factory)
 
 func createRole(mgmt *management.Factory, fleetworkspace *managementv3.FleetWorkspace, role string, verbs []string, userID string) {
 	roleName := "gorizond-" + role + "-" + fleetworkspace.Name
+	billingVerbs := []string{"get", "list", "watch"}
+	if role == "admin" {
+		billingVerbs = []string{"create", "delete", "get", "list", "watch"}
+	}
 	globalRole := &managementv3.GlobalRole{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: roleName,
@@ -159,6 +163,11 @@ func createRole(mgmt *management.Factory, fleetworkspace *managementv3.FleetWork
 					Resources: []string{"clusters"},
 					Verbs:     verbs,
 				},
+				{
+					APIGroups: []string{"provisioning.gorizond.io"},
+					Resources: []string{"billings", "billingevents"},
+					Verbs:     billingVerbs,
+				},
 			},
 		},
 		Rules: []rbacv1.PolicyRule{
@@ -173,6 +182,12 @@ func createRole(mgmt *management.Factory, fleetworkspace *managementv3.FleetWork
 				ResourceNames: []string{fleetworkspace.Name},
 				Resources:     []string{"clusters"},
 				Verbs:         verbs,
+			},
+			{
+				APIGroups:     []string{"provisioning.gorizond.io"},
+				ResourceNames: []string{fleetworkspace.Name},
+				Resources:     []string{"billings", "billingevents"},
+				Verbs:         billingVerbs,
 			},
 		},
 	}
