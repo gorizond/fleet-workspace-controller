@@ -3,6 +3,16 @@ entries:
   fleet-workspace-controller:
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2025-12-10T14:59:53.014628197Z"
+    description: A Helm chart Fleet workspace controller
+    digest: 5a47edeaa8780b51bbf6d5e057380d12a9ccf1b7091d9633bf450d1baddfc904
+    name: fleet-workspace-controller
+    type: application
+    urls:
+    - https://github.com/gorizond/fleet-workspace-controller/releases/download/fleet-workspace-controller-0.1.26/fleet-workspace-controller-0.1.26.tgz
+    version: 0.1.26
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2025-12-10T13:01:03.112043229Z"
     description: A Helm chart Fleet workspace controller
     digest: 121846659e28cf6385647903ebf847dd7d6c2b2ece5019333be366b5ec9375d5
@@ -241,4 +251,4 @@ entries:
     urls:
     - https://github.com/gorizond/fleet-workspace-controller/releases/download/fleet-workspace-controller-0.1.1/fleet-workspace-controller-0.1.1.tgz
     version: 0.1.1
-generated: "2025-12-10T13:01:03.112171386Z"
+generated: "2025-12-10T14:59:53.014868792Z"
