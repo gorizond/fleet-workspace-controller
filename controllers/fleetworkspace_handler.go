@@ -1,16 +1,23 @@
 package controllers
 
 import (
-	"os"
 	"context"
-	"github.com/rancher/lasso/pkg/log"
+	"os"
+	"strings"
+
 	managementv3 "github.com/gorizond/fleet-workspace-controller/pkg/apis/management.cattle.io/v3"
 	"github.com/gorizond/fleet-workspace-controller/pkg/generated/controllers/management.cattle.io"
+	"github.com/rancher/lasso/pkg/log"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"strings"
 )
+
+const workspacePrefix = "workspace-"
+
+type fleetWorkspaceDeleter interface {
+	Delete(name string, options *metav1.DeleteOptions) error
+}
 
 func InitFleetWorkspaceController(ctx context.Context, mgmt *management.Factory) {
 	fleetWorkspaces := mgmt.Management().V3().FleetWorkspace()
@@ -24,6 +31,14 @@ func InitFleetWorkspaceController(ctx context.Context, mgmt *management.Factory)
 		// ignore default workspaces
 		if obj.Name == "fleet-default" || obj.Name == "fleet-local" {
 			return nil, nil
+		}
+
+		deleted, err := ensureWorkspacePrefix(fleetWorkspaces, obj, workspacePrefix)
+		if err != nil {
+			return obj, err
+		}
+		if deleted {
+			return obj, nil
 		}
 
 		//
@@ -93,7 +108,7 @@ func InitFleetWorkspaceController(ctx context.Context, mgmt *management.Factory)
 		}
 		obj.Annotations["workspace-roles-init"] = "true"
 		// find principal for user if exist
-		searchedUser, err := findUserByUsername(os.Getenv("RANCHER_URL"), os.Getenv("RANCHER_TOKEN"), "/v3/user?id=" + obj.Annotations["field.cattle.io/creatorId"])
+		searchedUser, err := findUserByUsername(os.Getenv("RANCHER_URL"), os.Getenv("RANCHER_TOKEN"), "/v3/user?id="+obj.Annotations["field.cattle.io/creatorId"])
 		if err != nil {
 			return nil, err
 		}
@@ -131,6 +146,20 @@ func InitFleetWorkspaceController(ctx context.Context, mgmt *management.Factory)
 		return obj, nil
 	},
 	)
+}
+
+func ensureWorkspacePrefix(fleetWorkspaces fleetWorkspaceDeleter, obj *managementv3.FleetWorkspace, expectedPrefix string) (bool, error) {
+	if strings.HasPrefix(obj.Name, expectedPrefix) {
+		return false, nil
+	}
+
+	log.Infof("Deleting fleet workspace %q without required prefix %q", obj.Name, expectedPrefix)
+
+	if err := fleetWorkspaces.Delete(obj.Name, nil); err != nil && !errors.IsNotFound(err) {
+		return true, err
+	}
+
+	return true, nil
 }
 
 func createRole(mgmt *management.Factory, fleetworkspace *managementv3.FleetWorkspace, role string, verbs []string, userID string) {

@@ -2,9 +2,9 @@ package controllers
 
 import (
 	"context"
-	"github.com/rancher/lasso/pkg/log"
 	managementv3 "github.com/gorizond/fleet-workspace-controller/pkg/apis/management.cattle.io/v3"
 	"github.com/gorizond/fleet-workspace-controller/pkg/generated/controllers/management.cattle.io"
+	"github.com/rancher/lasso/pkg/log"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
@@ -39,7 +39,7 @@ func InitUserController(ctx context.Context, mgmt *management.Factory) {
 
 		fleetworkspace := &managementv3.FleetWorkspace{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "workspace-" + obj.Name,
+				Name: workspacePrefix + obj.Name,
 				Annotations: map[string]string{
 					"field.cattle.io/creatorId": obj.Name,
 				},
