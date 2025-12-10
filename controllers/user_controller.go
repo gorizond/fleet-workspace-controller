@@ -1,101 +1,85 @@
 package controllers
 
 import (
-	"context"
-	"fmt"
-	"strings"
+    "context"
+    "fmt"
+    "encoding/json"
+    "strings"
+    "time"
 
-	managementv3 "github.com/gorizond/fleet-workspace-controller/pkg/apis/management.cattle.io/v3"
-	"github.com/gorizond/fleet-workspace-controller/pkg/generated/controllers/management.cattle.io"
-	"github.com/rancher/lasso/pkg/log"
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+    managementv3 "github.com/gorizond/fleet-workspace-controller/pkg/apis/management.cattle.io/v3"
+    "github.com/gorizond/fleet-workspace-controller/pkg/generated/controllers/management.cattle.io"
+    "github.com/rancher/lasso/pkg/log"
+    "k8s.io/apimachinery/pkg/api/errors"
+    metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+    "k8s.io/apimachinery/pkg/types"
 )
 
 func InitUserController(ctx context.Context, mgmt *management.Factory) {
-	users := mgmt.Management().V3().User()
-	fleetWorkspaces := mgmt.Management().V3().FleetWorkspace()
-	users.OnChange(ctx, "gorizond-user-controller", func(key string, obj *managementv3.User) (*managementv3.User, error) {
-		if obj == nil {
-			return nil, nil
-		}
-		// check non system users
-		if obj.Status.Conditions == nil {
-			return nil, nil
-		}
-		// check workspace init on user create
-		firstInit := obj.Annotations != nil && obj.Annotations["self-workspace-init"] == "true"
+    users := mgmt.Management().V3().User()
+    users.OnChange(ctx, "gorizond-user-controller", func(key string, obj *managementv3.User) (*managementv3.User, error) {
+        if obj == nil {
+            return nil, nil
+        }
+        // check non system users
+        if obj.Status.Conditions == nil {
+            return nil, nil
+        }
+        // check workspace init on user create
+        firstInit := obj.Annotations != nil && obj.Annotations["self-workspace-init"] == "true"
 
-		if firstInit {
-			return obj, nil
-		}
-		// ignore system users
-		for _, id := range obj.PrincipalIDs {
-			if strings.HasPrefix(id, "system://") {
-				if obj.Annotations == nil {
-					obj.Annotations = make(map[string]string)
-				}
-				obj.Annotations["self-workspace-init"] = "true"
-				return users.Update(obj)
-			}
-		}
+        if firstInit {
+            return obj, nil
+        }
+        // ignore system users
+        for _, id := range obj.PrincipalIDs {
+            if strings.HasPrefix(id, "system://") {
+                if obj.Annotations == nil {
+                    obj.Annotations = make(map[string]string)
+                }
+                obj.Annotations["self-workspace-init"] = "true"
+                return users.Update(obj)
+            }
+        }
 
-		if err := createWorkspaceForUser(fleetWorkspaces, obj.Name); err != nil {
-			log.Infof("Failed to create fleetworkspace %s: %v", obj.Username, err)
-		}
-		obj = obj.DeepCopy()
+        fwName := fmt.Sprintf("%s%s-%d", workspacePrefix, obj.Name, time.Now().UnixNano())
+        fleetworkspace := &managementv3.FleetWorkspace{
+            ObjectMeta: metav1.ObjectMeta{
+                Name: fwName,
+                Annotations: map[string]string{
+                    "field.cattle.io/creatorId": obj.Name,
+                },
+            },
+        }
 
-		if obj.Annotations == nil {
-			obj.Annotations = make(map[string]string)
-		}
+        _, err := mgmt.Management().V3().FleetWorkspace().Create(fleetworkspace)
+        if err != nil && !errors.IsAlreadyExists(err) {
+            log.Infof("Failed to create fleetworkspace %s: %v", obj.Username, err)
+        }
+        obj = obj.DeepCopy()
 
-		obj.Annotations["self-workspace-init"] = "true"
+        if obj.Annotations == nil {
+            obj.Annotations = make(map[string]string)
+        }
 
-		// Here we are using the k8s client embedded onto the users controller to perform an update. This will go to the K8s API.
-		return users.Update(obj)
-	},
-	)
-}
+        obj.Annotations["self-workspace-init"] = "true"
 
-func createWorkspaceForUser(fleet fleetWorkspaceClient, userID string) error {
-	baseName := workspacePrefix + userID
-	targetName := baseName
+        // Patch only metadata.annotations to avoid sending spec field to Rancher API.
+        patch := map[string]interface{}{
+            "metadata": map[string]interface{}{
+                "annotations": obj.Annotations,
+            },
+        }
+        body, err := json.Marshal(patch)
+        if err != nil {
+            return obj, err
+        }
 
-	if existing, err := fleet.Get(baseName, metav1.GetOptions{}); err == nil {
-		if existing.Annotations != nil && existing.Annotations["field.cattle.io/creatorId"] == userID {
-			return nil
-		}
+        if _, err := users.Patch(obj.Name, types.MergePatchType, body); err != nil {
+            return obj, err
+        }
 
-		targetName = fmt.Sprintf("%s-%d", baseName, nowFn().UnixNano())
-	} else if !errors.IsNotFound(err) {
-		return err
-	}
-
-	_, err := fleet.Create(&managementv3.FleetWorkspace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: targetName,
-			Annotations: map[string]string{
-				"field.cattle.io/creatorId": userID,
-			},
-		},
-	})
-
-	if shouldRetryWithSuffix(err, targetName == baseName) {
-		targetName = fmt.Sprintf("%s-%d", baseName, nowFn().UnixNano())
-
-		_, err = fleet.Create(&managementv3.FleetWorkspace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: targetName,
-				Annotations: map[string]string{
-					"field.cattle.io/creatorId": userID,
-				},
-			},
-		})
-	}
-
-	if err != nil && !errors.IsAlreadyExists(err) {
-		return err
-	}
-
-	return nil
+        return obj, nil
+    },
+    )
 }
