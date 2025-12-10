@@ -37,6 +37,26 @@ func InitUserWorkspaceGuard(ctx context.Context, mgmt *management.Factory) {
 		return []string{obj.UserName}, nil
 	})
 
+	fleetWorkspaces.OnRemove(ctx, "gorizond-user-workspace-guard-ws", func(key string, obj *managementv3.FleetWorkspace) (*managementv3.FleetWorkspace, error) {
+		if obj == nil {
+			return nil, nil
+		}
+
+		owner := ""
+		if obj.Annotations != nil {
+			owner = obj.Annotations["field.cattle.io/creatorId"]
+		}
+		if owner == "" {
+			return obj, nil
+		}
+
+		if err := ensureUserHasWorkspace(grbCache, fleetWorkspaces, owner); err != nil {
+			return obj, err
+		}
+
+		return obj, nil
+	})
+
 	globalRoleBindings.OnRemove(ctx, "gorizond-user-workspace-guard", func(key string, obj *managementv3.GlobalRoleBinding) (*managementv3.GlobalRoleBinding, error) {
 		if obj == nil {
 			return nil, nil
