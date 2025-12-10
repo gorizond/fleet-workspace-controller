@@ -20,6 +20,10 @@ func (f *fakeFleetWorkspaceDeleter) Delete(name string, options *metav1.DeleteOp
 }
 
 func TestEnsureWorkspacePrefix(t *testing.T) {
+	oldPrefix := workspacePrefix
+	workspacePrefix = defaultWorkspacePrefix
+	t.Cleanup(func() { workspacePrefix = oldPrefix })
+
 	tests := []struct {
 		name            string
 		workspaceName   string

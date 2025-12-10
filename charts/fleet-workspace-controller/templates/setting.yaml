@@ -1,0 +1,8 @@
+apiVersion: management.cattle.io/v3
+kind: Setting
+metadata:
+  name: gorizond-workspace-prefix
+customized: true
+default: '{{ .Values.workspacePrefix }}'
+source: ''
+value: '{{ .Values.workspacePrefix }}'

@@ -13,7 +13,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const workspacePrefix = "workspace-"
+const defaultWorkspacePrefix = "workspace-"
+
+var workspacePrefix = getWorkspacePrefix()
 
 type fleetWorkspaceDeleter interface {
 	Delete(name string, options *metav1.DeleteOptions) error
@@ -160,6 +162,14 @@ func ensureWorkspacePrefix(fleetWorkspaces fleetWorkspaceDeleter, obj *managemen
 	}
 
 	return true, nil
+}
+
+func getWorkspacePrefix() string {
+	if env := os.Getenv("WORKSPACE_PREFIX"); env != "" {
+		return env
+	}
+
+	return defaultWorkspacePrefix
 }
 
 func createRole(mgmt *management.Factory, fleetworkspace *managementv3.FleetWorkspace, role string, verbs []string, userID string) {
