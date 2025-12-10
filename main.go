@@ -4,11 +4,11 @@ import (
 	"flag"
 	"github.com/gorizond/fleet-workspace-controller/controllers"
 	"github.com/gorizond/fleet-workspace-controller/pkg/generated/controllers/management.cattle.io"
-	"github.com/rancher/wrangler/v3/pkg/start"
+	"github.com/rancher/lasso/pkg/log"
 	"github.com/rancher/wrangler/v3/pkg/kubeconfig"
 	"github.com/rancher/wrangler/v3/pkg/signals"
+	"github.com/rancher/wrangler/v3/pkg/start"
 	"k8s.io/client-go/rest"
-	"github.com/rancher/lasso/pkg/log"
 )
 
 func main() {
@@ -25,12 +25,11 @@ func main() {
 		}
 		log.Infof("Using kubeconfig file")
 	}
-	
+
 	factory, err := management.NewFactoryFromConfig(config)
 	if err != nil {
 		log.Errorf("Failed to create management factory: %v", err)
 	}
-
 
 	ctx := signals.SetupSignalContext()
 	// Initialize controllers
@@ -38,6 +37,7 @@ func main() {
 	controllers.InitFleetWorkspaceController(ctx, factory)
 	controllers.InitGlobalRoleBindingController(ctx, factory)
 	controllers.InitGlobalRoleBindingTTLController(ctx, factory)
+	controllers.InitUserWorkspaceGuard(ctx, factory)
 	// Start controllers
 	if err := start.All(ctx, 10, factory); err != nil {
 		panic(err)
