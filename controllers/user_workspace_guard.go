@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	managementv3 "github.com/gorizond/fleet-workspace-controller/pkg/apis/management.cattle.io/v3"
@@ -111,7 +112,7 @@ func ensureUserHasWorkspace(grbIndexer globalRoleBindingIndexer, fleet fleetWork
 			},
 		},
 	})
-	if errors.IsAlreadyExists(err) && targetName == baseName {
+	if shouldRetryWithSuffix(err, targetName == baseName) {
 		targetName = fmt.Sprintf("%s-%d", baseName, nowFn().UnixNano())
 
 		_, err = fleet.Create(&managementv3.FleetWorkspace{
@@ -129,4 +130,28 @@ func ensureUserHasWorkspace(grbIndexer globalRoleBindingIndexer, fleet fleetWork
 	}
 
 	return nil
+}
+
+// shouldRetryWithSuffix determines whether we should retry creation with a unique name
+// when the base name either already exists or the previous namespace is still terminating.
+func shouldRetryWithSuffix(err error, wasBaseName bool) bool {
+	if err == nil {
+		return false
+	}
+
+	if errors.IsAlreadyExists(err) && wasBaseName {
+		return true
+	}
+
+	if statusErr, ok := err.(*errors.StatusError); ok {
+		msg := statusErr.ErrStatus.Message
+		if wasBaseName && strings.Contains(msg, "being terminated") {
+			return true
+		}
+		if wasBaseName && statusErr.ErrStatus.Reason == metav1.StatusReasonConflict {
+			return true
+		}
+	}
+
+	return false
 }

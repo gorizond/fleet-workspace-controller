@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -27,6 +28,7 @@ type fakeFleetWorkspaceClient struct {
 	existingCreators map[string]string
 	getErr           error
 	createErr        error
+	createErrs       []error
 
 	created []string
 }
@@ -48,6 +50,15 @@ func (f *fakeFleetWorkspaceClient) Get(name string, opts metav1.GetOptions) (*ma
 
 func (f *fakeFleetWorkspaceClient) Create(obj *managementv3.FleetWorkspace) (*managementv3.FleetWorkspace, error) {
 	f.created = append(f.created, obj.Name)
+
+	if len(f.createErrs) > 0 {
+		err := f.createErrs[0]
+		f.createErrs = f.createErrs[1:]
+		if err != nil {
+			return nil, err
+		}
+		return obj, nil
+	}
 
 	if f.createErr != nil {
 		return nil, f.createErr
@@ -73,6 +84,7 @@ func TestEnsureUserHasWorkspace(t *testing.T) {
 		existing         map[string]string
 		getErr           error
 		createErr        error
+		createErrs       []error
 		wantCreateCalls  int
 		wantErr          bool
 		wantSuffix       bool
@@ -117,11 +129,23 @@ func TestEnsureUserHasWorkspace(t *testing.T) {
 			wantSuffix:      true,
 		},
 		{
-			name:             "retries with suffix on AlreadyExists",
-			createErr:        apierrors.NewAlreadyExists(schema.GroupResource{Resource: "fleetworkspaces"}, defaultWorkspacePrefix+"u1"),
+			name: "retries with suffix on AlreadyExists",
+			createErrs: []error{
+				apierrors.NewAlreadyExists(schema.GroupResource{Resource: "fleetworkspaces"}, defaultWorkspacePrefix+"u1"),
+				nil,
+			},
 			wantCreateCalls:  2,
 			wantSuffix:       true,
 			wantDoubleCreate: true,
+		},
+		{
+			name: "retries with suffix when namespace terminating",
+			createErrs: []error{
+				apierrors.NewForbidden(schema.GroupResource{Resource: "fleetworkspaces"}, defaultWorkspacePrefix+"u1", fmt.Errorf("namespace is being terminated")),
+				nil,
+			},
+			wantCreateCalls: 2,
+			wantSuffix:      true,
 		},
 		{
 			name:     "propagates index error",
@@ -138,7 +162,7 @@ func TestEnsureUserHasWorkspace(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			lister := &fakeGlobalRoleBindingIndexer{index: tt.index, err: tt.indexErr}
-			client := &fakeFleetWorkspaceClient{existingCreators: tt.existing, getErr: tt.getErr, createErr: tt.createErr}
+			client := &fakeFleetWorkspaceClient{existingCreators: tt.existing, getErr: tt.getErr, createErr: tt.createErr, createErrs: tt.createErrs}
 
 			err := ensureUserHasWorkspace(lister, client, "u1")
 

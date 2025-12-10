@@ -80,7 +80,7 @@ func createWorkspaceForUser(fleet fleetWorkspaceClient, userID string) error {
 		},
 	})
 
-	if errors.IsAlreadyExists(err) && targetName == baseName {
+	if shouldRetryWithSuffix(err, targetName == baseName) {
 		targetName = fmt.Sprintf("%s-%d", baseName, nowFn().UnixNano())
 
 		_, err = fleet.Create(&managementv3.FleetWorkspace{
