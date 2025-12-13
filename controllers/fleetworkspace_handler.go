@@ -13,7 +13,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const defaultWorkspacePrefix = "workspace-"
+const (
+	defaultWorkspacePrefix      = "workspace-"
+	selfWorkspaceInitAnnotation = "self-workspace-init"
+	userSelfFleetAnnotation     = "gorizond-self-fleet"
+)
 
 var workspacePrefix = getWorkspacePrefix()
 
@@ -126,23 +130,64 @@ func InitFleetWorkspaceController(ctx context.Context, mgmt *management.Factory)
 	},
 	)
 	fleetWorkspaces.OnRemove(ctx, "gorizond-workspace-delete", func(key string, obj *managementv3.FleetWorkspace) (*managementv3.FleetWorkspace, error) {
+		if obj == nil {
+			return nil, nil
+		}
+
+		creator := ""
+		if obj.Annotations != nil {
+			creator = obj.Annotations["field.cattle.io/creatorId"]
+		}
+		if creator != "" {
+			user, err := users.Get(creator, metav1.GetOptions{})
+			if err != nil {
+				if !errors.IsNotFound(err) {
+					log.Infof("Failed to get user %s for deleted workspace %s: %v", creator, obj.Name, err)
+				}
+			} else {
+				selfFleet := ""
+				if user.Annotations != nil {
+					selfFleet = user.Annotations[userSelfFleetAnnotation]
+				}
+
+				shouldReset := selfFleet == "" || selfFleet == obj.Name
+				if !shouldReset && selfFleet != "" {
+					ws, err := fleetWorkspaces.Get(selfFleet, metav1.GetOptions{})
+					if err != nil {
+						if errors.IsNotFound(err) {
+							shouldReset = true
+						} else {
+							log.Infof("Failed to get fleetworkspace %s referenced by user %s: %v", selfFleet, creator, err)
+						}
+					} else if ws == nil || ws.DeletionTimestamp != nil {
+						shouldReset = true
+					}
+				}
+
+				if shouldReset {
+					if err := patchUserAnnotations(users, creator, map[string]interface{}{
+						selfWorkspaceInitAnnotation: nil,
+						userSelfFleetAnnotation:     nil,
+					}); err != nil && !errors.IsNotFound(err) {
+						log.Infof("Failed to reset user annotations user=%s workspace=%s: %v", creator, obj.Name, err)
+					}
+				}
+			}
+		}
+
 		// check rules init on workspace
 		gorizondInit := obj.Annotations != nil && obj.Annotations["workspace-roles-init"] == "true"
-
 		if !gorizondInit {
 			return obj, nil
 		}
 
-		err := mgmt.Management().V3().GlobalRole().Delete("gorizond-admin-"+obj.Name, nil)
-		if err != nil {
+		if err := mgmt.Management().V3().GlobalRole().Delete("gorizond-admin-"+obj.Name, nil); err != nil && !errors.IsNotFound(err) {
 			return nil, err
 		}
-		err = mgmt.Management().V3().GlobalRole().Delete("gorizond-editor-"+obj.Name, nil)
-		if err != nil {
+		if err := mgmt.Management().V3().GlobalRole().Delete("gorizond-editor-"+obj.Name, nil); err != nil && !errors.IsNotFound(err) {
 			return nil, err
 		}
-		err = mgmt.Management().V3().GlobalRole().Delete("gorizond-view-"+obj.Name, nil)
-		if err != nil {
+		if err := mgmt.Management().V3().GlobalRole().Delete("gorizond-view-"+obj.Name, nil); err != nil && !errors.IsNotFound(err) {
 			return nil, err
 		}
 		return obj, nil
